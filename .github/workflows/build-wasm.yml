@@ -31,7 +31,7 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y cmake ninja-build python3-pip clang libclang-dev
-          pip3 install Pillow lz4 libclang
+          pip3 install Pillow lz4 libclang pydantic jinja2 typing_extensions
 
       - name: Build WASM modules
         run: |

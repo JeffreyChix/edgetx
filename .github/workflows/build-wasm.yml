@@ -46,7 +46,7 @@ jobs:
       with:
         name: edgetx-wasm-mono
         path: edgetx/output/*.wasm
-        retention-days: 90
+        retention-days: 1
 
   build-color:
     runs-on: ubuntu-latest
@@ -83,7 +83,7 @@ jobs:
       with:
         name: edgetx-wasm-color
         path: edgetx/output/*.wasm
-        retention-days: 90
+        retention-days: 1
 
   release:
     needs: [ build-mono, build-color ]

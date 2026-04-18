@@ -14,15 +14,34 @@ jobs:
   build-mono:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    # Skip if flavor is specified and contains no mono radios
+    if: |
+      github.event.inputs.flavor == '' ||
+      contains(github.event.inputs.flavor, 'boxer') ||
+      contains(github.event.inputs.flavor, 'bumblebee') ||
+      contains(github.event.inputs.flavor, 'commando8') ||
+      contains(github.event.inputs.flavor, 'gx12') ||
+      contains(github.event.inputs.flavor, 'mt12') ||
+      contains(github.event.inputs.flavor, 'pocket') ||
+      contains(github.event.inputs.flavor, 't12max') ||
+      contains(github.event.inputs.flavor, 't14') ||
+      contains(github.event.inputs.flavor, 't20') ||
+      contains(github.event.inputs.flavor, 't20v2') ||
+      contains(github.event.inputs.flavor, 'tpros') ||
+      contains(github.event.inputs.flavor, 'tprov2') ||
+      contains(github.event.inputs.flavor, 'tx12mk2') ||
+      contains(github.event.inputs.flavor, 'zorro') ||
+      contains(github.event.inputs.flavor, 'v12') ||
+      contains(github.event.inputs.flavor, 'v14') ||
+      contains(github.event.inputs.flavor, 'x7access') ||
+      contains(github.event.inputs.flavor, 'x9dp2019') ||
+      contains(github.event.inputs.flavor, 'x9e')
     steps:
-    - name: Checkout web-simu repo
-      uses: actions/checkout@v4
-
-    - name: Checkout EdgeTX wasi-web branch
+    - name: Checkout EdgeTX main branch
       uses: actions/checkout@v4
       with:
         repository: EdgeTX/edgetx
-        ref: wasi-web
+        ref: main
         submodules: recursive
         path: edgetx
 
@@ -32,16 +51,37 @@ jobs:
         sudo apt-get install -y cmake ninja-build python3-pip clang libclang-dev
         pip3 install Pillow lz4 libclang pydantic jinja2 typing_extensions
 
+    - name: Determine mono flavor
+      id: mono-flavor
+      run: |
+        INPUT="${{ github.event.inputs.flavor }}"
+        MONO="boxer;bumblebee;commando8;gx12;mt12;pocket;t12max;t14;t20;t20v2;tpros;tprov2;tx12mk2;zorro;v12;v14;x7access;x9dp2019;x9e"
+        if [ -z "$INPUT" ]; then
+          echo "flavor=$MONO" >> $GITHUB_OUTPUT
+        else
+          # Filter input to only mono radios
+          FILTERED=""
+          IFS=';' read -ra PARTS <<< "$INPUT"
+          for p in "${PARTS[@]}"; do
+            if echo "$MONO" | grep -qw "$p"; then
+              FILTERED="${FILTERED:+$FILTERED;}$p"
+            fi
+          done
+          echo "flavor=$FILTERED" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build monochrome WASM modules
+      if: steps.mono-flavor.outputs.flavor != ''
       run: |
         cd edgetx
         bash tools/build-wasm-modules.sh
       env:
-        FLAVOR: boxer;bumblebee;commando8;gx12;mt12;pocket;t12max;t14;t20;t20v2;tpros;tprov2;tx12mk2;zorro;v12;v14;x7access;x9dp2019;x9e
+        FLAVOR: ${{ steps.mono-flavor.outputs.flavor }}
         MAX_JOBS: 4
         CMAKE_GENERATOR: Ninja
 
     - name: Upload mono artifacts
+      if: steps.mono-flavor.outputs.flavor != ''
       uses: actions/upload-artifact@v4
       with:
         name: edgetx-wasm-mono
@@ -51,15 +91,34 @@ jobs:
   build-color:
     runs-on: ubuntu-latest
     timeout-minutes: 180
+    if: |
+      github.event.inputs.flavor == '' ||
+      contains(github.event.inputs.flavor, 'el18') ||
+      contains(github.event.inputs.flavor, 'nb4p') ||
+      contains(github.event.inputs.flavor, 'nv14') ||
+      contains(github.event.inputs.flavor, 'st16') ||
+      contains(github.event.inputs.flavor, 'pa01') ||
+      contains(github.event.inputs.flavor, 'pl18') ||
+      contains(github.event.inputs.flavor, 'pl18ev') ||
+      contains(github.event.inputs.flavor, 'pl18u') ||
+      contains(github.event.inputs.flavor, 't15') ||
+      contains(github.event.inputs.flavor, 't15pro') ||
+      contains(github.event.inputs.flavor, 't16') ||
+      contains(github.event.inputs.flavor, 't18') ||
+      contains(github.event.inputs.flavor, 'tx15') ||
+      contains(github.event.inputs.flavor, 'tx16s') ||
+      contains(github.event.inputs.flavor, 'tx16smk3') ||
+      contains(github.event.inputs.flavor, 'f16') ||
+      contains(github.event.inputs.flavor, 'v16') ||
+      contains(github.event.inputs.flavor, 'x10') ||
+      contains(github.event.inputs.flavor, 'x10express') ||
+      contains(github.event.inputs.flavor, 'x12s')
     steps:
-    - name: Checkout web-simu repo
-      uses: actions/checkout@v4
-
-    - name: Checkout EdgeTX wasi-web branch
+    - name: Checkout EdgeTX main branch
       uses: actions/checkout@v4
       with:
         repository: EdgeTX/edgetx
-        ref: wasi-web
+        ref: main
         submodules: recursive
         path: edgetx
 
@@ -69,16 +128,36 @@ jobs:
         sudo apt-get install -y cmake ninja-build python3-pip clang libclang-dev
         pip3 install Pillow lz4 libclang pydantic jinja2 typing_extensions
 
+    - name: Determine color flavor
+      id: color-flavor
+      run: |
+        INPUT="${{ github.event.inputs.flavor }}"
+        COLOR="el18;nb4p;nv14;st16;pa01;pl18;pl18ev;pl18u;t15;t15pro;t16;t18;tx15;tx16s;tx16smk3;f16;v16;x10;x10express;x12s"
+        if [ -z "$INPUT" ]; then
+          echo "flavor=$COLOR" >> $GITHUB_OUTPUT
+        else
+          FILTERED=""
+          IFS=';' read -ra PARTS <<< "$INPUT"
+          for p in "${PARTS[@]}"; do
+            if echo "$COLOR" | grep -qw "$p"; then
+              FILTERED="${FILTERED:+$FILTERED;}$p"
+            fi
+          done
+          echo "flavor=$FILTERED" >> $GITHUB_OUTPUT
+        fi
+
     - name: Build color WASM modules
+      if: steps.color-flavor.outputs.flavor != ''
       run: |
         cd edgetx
         bash tools/build-wasm-modules.sh
       env:
-        FLAVOR: el18;nb4p;nv14;st16;pa01;pl18;pl18ev;pl18u;t15;t15pro;t16;t18;tx15;tx16s;tx16smk3;f16;v16;x10;x10express;x12s
+        FLAVOR: ${{ steps.color-flavor.outputs.flavor }}
         MAX_JOBS: 4
         CMAKE_GENERATOR: Ninja
 
     - name: Upload color artifacts
+      if: steps.color-flavor.outputs.flavor != ''
       uses: actions/upload-artifact@v4
       with:
         name: edgetx-wasm-color
@@ -87,6 +166,7 @@ jobs:
 
   release:
     needs: [ build-mono, build-color ]
+    if: always()
     runs-on: ubuntu-latest
     steps:
     - name: Checkout
@@ -97,12 +177,14 @@ jobs:
       with:
         name: edgetx-wasm-mono
         path: wasm/
+      continue-on-error: true
 
     - name: Download color artifacts
       uses: actions/download-artifact@v4
       with:
         name: edgetx-wasm-color
         path: wasm/
+      continue-on-error: true
 
     - name: Create Release
       uses: softprops/action-gh-release@v2
@@ -111,7 +193,7 @@ jobs:
         name: EdgeTX WASM Simulator Modules
         body: |
           Pre-built EdgeTX WASM simulator modules.
-          Built from EdgeTX wasi-web branch.
+          Built from EdgeTX main branch.
         files: wasm/*.wasm
         make_latest: true
       env:

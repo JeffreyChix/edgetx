@@ -40,7 +40,7 @@ jobs:
     - name: Checkout EdgeTX main branch
       uses: actions/checkout@v4
       with:
-        repository: EdgeTX/edgetx
+        repository: JeffreyChix/edgetx
         ref: main
         submodules: recursive
         path: edgetx
@@ -117,7 +117,7 @@ jobs:
     - name: Checkout EdgeTX main branch
       uses: actions/checkout@v4
       with:
-        repository: EdgeTX/edgetx
+        repository: JeffreyChix/edgetx
         ref: main
         submodules: recursive
         path: edgetx

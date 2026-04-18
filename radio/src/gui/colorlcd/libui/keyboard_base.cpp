@@ -201,3 +201,22 @@ void Keyboard::setField(FormField* newField)
     }
   }
 }
+
+void Keyboard::injectChar(uint8_t c)
+{
+  if (!activeKeyboard) return;
+  lv_obj_t* kb = activeKeyboard->keyboard;
+  if (!kb) return;
+  lv_keyboard_t* lvkb = (lv_keyboard_t*)kb;
+  if (!lvkb->ta) return;
+
+  if (c == 8) {        // backspace
+    lv_textarea_del_char(lvkb->ta);
+  } else if (c == 127) { // delete
+    lv_textarea_del_char_forward(lvkb->ta);
+  } else if (c == 13) { // enter - confirm
+    lv_textarea_add_char(lvkb->ta, '\n');
+  } else if (c >= 32 && c < 127) { // printable ASCII
+    lv_textarea_add_char(lvkb->ta, (char)c);
+  }
+}

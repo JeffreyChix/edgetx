@@ -106,6 +106,7 @@ void WASM_EXPORT(simuSendTelemetry)(uint8_t module, uint8_t protocol,
 
 // Lua: trigger reload of permanent scripts.
 void WASM_EXPORT(simuLuaReloadPermanentScripts)();
+void WASM_EXPORT(simuInjectChar)(uint8_t c);
 
 // LCD: notify firmware that host has consumed the LCD buffer.
 void WASM_EXPORT(simuLcdFlushed)();

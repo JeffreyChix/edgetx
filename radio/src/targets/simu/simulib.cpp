@@ -618,6 +618,17 @@ void simuLuaReloadPermanentScripts()
 #endif
 }
 
+#if defined(COLORLCD)
+#include "gui/colorlcd/libui/keyboard_base.h"
+#endif
+
+void WASM_EXPORT(simuInjectChar)(uint8_t c)
+{
+#if defined(COLORLCD)
+  Keyboard::injectChar(c);
+#endif
+}
+
 void simuLcdFlushed()
 {
   ::lcdFlushed();

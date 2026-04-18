@@ -626,6 +626,46 @@ void WASM_EXPORT(simuInjectChar)(uint8_t c)
 {
 #if defined(COLORLCD)
   Keyboard::injectChar(c);
+#else
+  // Monochrome: write directly to active edit buffer
+  extern char* activeEditNameBuffer;
+  extern uint8_t activeEditNameSize;
+  extern uint8_t editNameCursorPos;
+
+  if (!activeEditNameBuffer) return;
+  if (c == 8) { // backspace
+    if (editNameCursorPos > 0) {
+      editNameCursorPos--;
+      activeEditNameBuffer[editNameCursorPos] = ' ';
+      storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
+    }
+  } else if (c >= 32 && c < 127) {
+    if (editNameCursorPos < activeEditNameSize - 1) {
+      activeEditNameBuffer[editNameCursorPos] = (char)c;
+      editNameCursorPos++;
+      storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
+    }
+  }
+#endif
+}
+
+bool WASM_EXPORT(simuIsTextKeyboardActive)()
+{
+#if defined(COLORLCD)
+  return Keyboard::isTextKeyboardActive();
+#else
+  extern char* activeEditNameBuffer;
+  extern int8_t s_editMode;
+  return activeEditNameBuffer != nullptr && s_editMode > 0;
+#endif
+}
+
+bool WASM_EXPORT(simuIsNumberKeyboardActive)()
+{
+#if defined(COLORLCD)
+  return Keyboard::isNumberKeyboardActive();
+#else
+  return false;
 #endif
 }
 

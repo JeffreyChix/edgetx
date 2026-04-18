@@ -34,6 +34,8 @@ class Keyboard : public NavWindow
   static Keyboard* keyboardWindow() { return activeKeyboard; }
 
   static void injectChar(uint8_t c);
+  static bool isTextKeyboardActive();
+  static bool isNumberKeyboardActive();
 
  protected:
   static Keyboard *activeKeyboard;

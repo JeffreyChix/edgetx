@@ -220,3 +220,22 @@ void Keyboard::injectChar(uint8_t c)
     lv_textarea_add_char(lvkb->ta, (char)c);
   }
 }
+
+bool Keyboard::isTextKeyboardActive()
+{
+  if (!activeKeyboard) return false;
+  lv_obj_t* kb = activeKeyboard->keyboard;
+  if (!kb) return false;
+  lv_keyboard_t* lvkb = (lv_keyboard_t*)kb;
+  return lvkb->ta != nullptr;
+}
+
+bool Keyboard::isNumberKeyboardActive()
+{
+  if (!activeKeyboard) return false;
+  lv_obj_t* kb = activeKeyboard->keyboard;
+  if (!kb) return false;
+  lv_keyboard_t* lvkb = (lv_keyboard_t*)kb;
+  // Number keyboard uses USER_1 mode, text keyboard uses TEXT modes
+  return lv_keyboard_get_mode(kb) == LV_KEYBOARD_MODE_USER_1;
+}

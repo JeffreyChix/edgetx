@@ -678,6 +678,7 @@ bool WASM_EXPORT(simuIsNumberKeyboardActive)()
 #include "gui/colorlcd/mainview/view_main.h"
 #include "gui/colorlcd/mainview/layout.h"
 #include "gui/colorlcd/mainview/widget.h"
+#include "lvgl/lvgl.h"
 extern WidgetsContainer* customScreens[];
 #elif defined(LUA)
 // Forward declaration for monochrome luaExec (defined in lua/interface.cpp)
@@ -698,20 +699,37 @@ void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const 
 #endif
 }
 
+// Storage for the pending widget name: must outlive the async call.
+static char _pendingWidgetName[33] = {0};
+
+#if defined(COLORLCD) && defined(LUA)
+static void _loadWidgetOnLvglThread(void* /*param*/)
+{
+  if (_pendingWidgetName[0] == '\0') return;
+
+  unsigned int screenIdx = ViewMain::instance()->getCurrentMainView();
+  if (screenIdx < MAX_CUSTOM_SCREENS && customScreens[screenIdx]) {
+    const WidgetFactory* factory = WidgetFactory::getWidgetFactory(_pendingWidgetName);
+    if (factory) {
+      Layout* layout = static_cast<Layout*>(customScreens[screenIdx]);
+      layout->removeWidget(0);
+      layout->createWidget(0, factory);
+    }
+  }
+  _pendingWidgetName[0] = '\0';
+}
+#endif
+
 void WASM_EXPORT(simuLoadWidget)(const char* widgetName)
 {
 #if defined(COLORLCD) && defined(LUA)
   if (!widgetName || widgetName[0] == '\0') return;
-
-  unsigned int screenIdx = ViewMain::instance()->getCurrentMainView();
-  if (screenIdx >= MAX_CUSTOM_SCREENS || !customScreens[screenIdx]) return;
-
-  const WidgetFactory* factory = WidgetFactory::getWidgetFactory(widgetName);
-  if (!factory) return;
-
-  Layout* layout = static_cast<Layout*>(customScreens[screenIdx]);
-  layout->removeWidget(0);
-  layout->createWidget(0, factory);
+  // Copy name into static storage that outlives this call.
+  strncpy(_pendingWidgetName, widgetName, sizeof(_pendingWidgetName) - 1);
+  _pendingWidgetName[sizeof(_pendingWidgetName) - 1] = '\0';
+  // Schedule widget creation on the LVGL thread (same thread as Lua widget
+  // refresh) to avoid concurrent access to lsWidgets.
+  lv_async_call(_loadWidgetOnLvglThread, nullptr);
 #endif
 }
 

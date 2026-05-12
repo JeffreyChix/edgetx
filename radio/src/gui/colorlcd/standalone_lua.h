@@ -28,6 +28,7 @@
 #include "lua/lua_widget.h"
 
 extern void luaExecStandalone(const char * filename);
+extern void luaExecStandaloneFromBuffer(const char* content, size_t len, const char* name);
 
 class StandaloneLuaWindow : public Window, public LuaScriptManager
 {

@@ -121,6 +121,50 @@ void luaExecStandalone(const char * filename)
   UNPROTECT_LUA();
 }
 
+// Buffer-based variant: loads script content directly from memory instead of
+// from the filesystem.  Used by the VS Code extension simulator host to bypass
+// WASI file I/O, which is not available on the main thread (only on pthreads
+// that have FsProxyClient attached).
+void luaExecStandaloneFromBuffer(const char* content, size_t len, const char* name)
+{
+  if (lsStandalone == nullptr)
+    luaStandaloneInit();
+
+  PROTECT_LUA() {
+    if (luaL_loadbuffer(lsStandalone, content, len, name) == LUA_OK) {
+      if (lua_pcall(lsStandalone, 0, 1, 0) == LUA_OK && lua_istable(lsStandalone, -1)) {
+        int initFunction = LUA_REFNIL, runFunction = LUA_REFNIL;
+        bool lvglLayout = false;
+
+        for (lua_pushnil(lsStandalone); lua_next(lsStandalone, -2); lua_pop(lsStandalone, 1)) {
+          const char * key = lua_tostring(lsStandalone, -2);
+          if (!strcmp(key, "init")) {
+            initFunction = luaL_ref(lsStandalone, LUA_REGISTRYINDEX);
+            lua_pushnil(lsStandalone);
+          } else if (!strcmp(key, "run")) {
+            runFunction = luaL_ref(lsStandalone, LUA_REGISTRYINDEX);
+            lua_pushnil(lsStandalone);
+          } else if (!strcasecmp(key, "useLvgl")) {
+            lvglLayout = lua_toboolean(lsStandalone, -1);
+          }
+        }
+
+        StandaloneLuaWindow::setup(lvglLayout, initFunction, runFunction);
+      }
+      else {
+        TRACE("luaExecStandaloneFromBuffer(%s): Error: %s", name, lua_tostring(lsStandalone, -1));
+      }
+    }
+    else {
+      TRACE("luaExecStandaloneFromBuffer(%s): Load error: %s", name, lua_tostring(lsStandalone, -1));
+    }
+  }
+  else {
+    return;
+  }
+  UNPROTECT_LUA();
+}
+
 // singleton instance
 StandaloneLuaWindow* StandaloneLuaWindow::_instance;
 

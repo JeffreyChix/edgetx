@@ -684,14 +684,17 @@ extern WidgetsContainer* customScreens[];
 extern void luaExec(const char* filename);
 #endif
 
-void WASM_EXPORT(simuRunScript)(const char* path)
+void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const char* name)
 {
-#if defined(LUA)
-#if defined(COLORLCD)
-  luaExecStandalone(path);
-#else
-  luaExec(path);
-#endif
+#if defined(LUA) && defined(COLORLCD)
+  luaExecStandaloneFromBuffer(content, (size_t)len, name);
+#elif defined(LUA)
+  // Monochrome: load buffer into the main Lua script state.
+  // luaExec() is not used here because it expects a filesystem path.
+  // Instead we load directly from the supplied buffer.
+  if (luaL_loadbuffer(lsScripts, content, (size_t)len, name) == LUA_OK) {
+    luaState = INTERPRETER_LOADING;
+  }
 #endif
 }
 

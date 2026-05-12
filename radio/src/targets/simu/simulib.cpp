@@ -669,6 +669,49 @@ bool WASM_EXPORT(simuIsNumberKeyboardActive)()
 #endif
 }
 
+// ---------------------------------------------------------------------------
+// Script simulation exports
+// ---------------------------------------------------------------------------
+
+#if defined(COLORLCD)
+#include "gui/colorlcd/standalone_lua.h"
+#include "gui/colorlcd/mainview/view_main.h"
+#include "gui/colorlcd/mainview/layout.h"
+#include "gui/colorlcd/mainview/widget.h"
+extern WidgetsContainer* customScreens[];
+#elif defined(LUA)
+// Forward declaration for monochrome luaExec (defined in lua/interface.cpp)
+extern void luaExec(const char* filename);
+#endif
+
+void WASM_EXPORT(simuRunScript)(const char* path)
+{
+#if defined(LUA)
+#if defined(COLORLCD)
+  luaExecStandalone(path);
+#else
+  luaExec(path);
+#endif
+#endif
+}
+
+void WASM_EXPORT(simuLoadWidget)(const char* widgetName)
+{
+#if defined(COLORLCD) && defined(LUA)
+  if (!widgetName || widgetName[0] == '\0') return;
+
+  unsigned int screenIdx = ViewMain::instance()->getCurrentMainView();
+  if (screenIdx >= MAX_CUSTOM_SCREENS || !customScreens[screenIdx]) return;
+
+  const WidgetFactory* factory = WidgetFactory::getWidgetFactory(widgetName);
+  if (!factory) return;
+
+  Layout* layout = static_cast<Layout*>(customScreens[screenIdx]);
+  layout->removeWidget(0);
+  layout->createWidget(0, factory);
+#endif
+}
+
 void simuLcdFlushed()
 {
   ::lcdFlushed();

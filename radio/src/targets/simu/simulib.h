@@ -110,6 +110,16 @@ void WASM_EXPORT(simuInjectChar)(uint8_t c);
 bool WASM_EXPORT(simuIsTextKeyboardActive)();
 bool WASM_EXPORT(simuIsNumberKeyboardActive)();
 
+// Script simulation: call after simuStart() once the first LCD frame has arrived.
+// simuRunScript  — runs a standalone Lua script (telemetry / one-time).
+//                  On color LCD uses StandaloneLuaWindow; on mono uses luaExec().
+//                  path is the WASI path, e.g. "/SCRIPTS/TELEMETRY/myscript.lua".
+// simuLoadWidget — loads a registered Lua widget by its internal name field
+//                  (e.g. "Battery Graph") onto zone 0 of the active main screen.
+//                  Color LCD only; widgets are not supported on monochrome radios.
+void WASM_EXPORT(simuRunScript)(const char* path);
+void WASM_EXPORT(simuLoadWidget)(const char* widgetName);
+
 // LCD: notify firmware that host has consumed the LCD buffer.
 void WASM_EXPORT(simuLcdFlushed)();
 

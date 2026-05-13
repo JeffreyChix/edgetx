@@ -698,24 +698,52 @@ void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const 
 #endif
 }
 
-// Storage for the pending widget name: must outlive the async call.
-static char _pendingWidgetName[33] = {0};
+// Pending widget request — must outlive the async call.
+static struct {
+  char name[33];
+  bool hasLayout;
+  char layoutId[33];
+  uint8_t zoneIndex;
+} _pendingWidget = {{0}, false, {0}, 0};
 
 #if defined(COLORLCD) && defined(LUA)
 static void _loadWidgetOnLvglThread(void* /*param*/)
 {
-  if (_pendingWidgetName[0] == '\0') return;
+  if (_pendingWidget.name[0] == '\0') return;
 
   unsigned int screenIdx = ViewMain::instance()->getCurrentMainView();
   if (screenIdx < MAX_CUSTOM_SCREENS && customScreens[screenIdx]) {
-    const WidgetFactory* factory = WidgetFactory::getWidgetFactory(_pendingWidgetName);
+    const WidgetFactory* factory = WidgetFactory::getWidgetFactory(_pendingWidget.name);
     if (factory) {
       Layout* layout = static_cast<Layout*>(customScreens[screenIdx]);
-      layout->removeWidget(0);
-      layout->createWidget(0, factory);
+      if (_pendingWidget.hasLayout) {
+        // Look up the target layout factory and compute its zone rect using
+        // the radio's actual available display area — EdgeTX owns both pieces.
+        const LayoutFactory* lf =
+            LayoutFactory::getLayoutFactory(_pendingWidget.layoutId);
+        uint8_t zi = _pendingWidget.zoneIndex;
+        if (lf && zi < lf->getZoneCount()) {
+          const uint8_t* zm = lf->getZoneMap();
+          rect_t avail = layout->getWidgetsZoneRect();
+          uint8_t i = zi * 4;
+          coord_t zx = avail.x + avail.w * zm[i]     / LAYOUT_MAP_DIV;
+          coord_t zy = avail.y + avail.h * zm[i + 1] / LAYOUT_MAP_DIV;
+          coord_t zw = avail.w * zm[i + 2] / LAYOUT_MAP_DIV;
+          coord_t zh = avail.h * zm[i + 3] / LAYOUT_MAP_DIV;
+          layout->createWidgetInRect(0, factory, {zx, zy, zw, zh});
+        } else {
+          // Layout or zone not found — fall back to natural zone 0
+          layout->removeWidget(0);
+          layout->createWidget(0, factory);
+        }
+      } else {
+        layout->removeWidget(0);
+        layout->createWidget(0, factory);
+      }
     }
   }
-  _pendingWidgetName[0] = '\0';
+  _pendingWidget.name[0] = '\0';
+  _pendingWidget.hasLayout = false;
 }
 #endif
 
@@ -723,11 +751,26 @@ void WASM_EXPORT(simuLoadWidget)(const char* widgetName)
 {
 #if defined(COLORLCD) && defined(LUA)
   if (!widgetName || widgetName[0] == '\0') return;
-  // Copy name into static storage that outlives this call.
-  strncpy(_pendingWidgetName, widgetName, sizeof(_pendingWidgetName) - 1);
-  _pendingWidgetName[sizeof(_pendingWidgetName) - 1] = '\0';
-  // Schedule widget creation on the LVGL thread (same thread as Lua widget
-  // refresh) to avoid concurrent access to lsWidgets.
+  strncpy(_pendingWidget.name, widgetName, sizeof(_pendingWidget.name) - 1);
+  _pendingWidget.name[sizeof(_pendingWidget.name) - 1] = '\0';
+  _pendingWidget.hasLayout = false;
+  lv_async_call(_loadWidgetOnLvglThread, nullptr);
+#endif
+}
+
+void WASM_EXPORT(simuLoadWidgetByLayout)(const char* widgetName,
+                                         const char* layoutId,
+                                         uint8_t zoneIndex)
+{
+#if defined(COLORLCD) && defined(LUA)
+  if (!widgetName || widgetName[0] == '\0') return;
+  strncpy(_pendingWidget.name, widgetName, sizeof(_pendingWidget.name) - 1);
+  _pendingWidget.name[sizeof(_pendingWidget.name) - 1] = '\0';
+  _pendingWidget.hasLayout = true;
+  strncpy(_pendingWidget.layoutId, layoutId ? layoutId : "",
+          sizeof(_pendingWidget.layoutId) - 1);
+  _pendingWidget.layoutId[sizeof(_pendingWidget.layoutId) - 1] = '\0';
+  _pendingWidget.zoneIndex = zoneIndex;
   lv_async_call(_loadWidgetOnLvglThread, nullptr);
 #endif
 }

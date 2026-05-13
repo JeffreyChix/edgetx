@@ -104,6 +104,15 @@ class Layout: public WidgetsContainer
   Widget* createWidget(unsigned int index,
                        const WidgetFactory* factory) override;
 
+  // Like createWidget but uses an explicit zone rect instead of getZone(index).
+  // Used by the VS Code simulator to honour ---@simulate layout/zone annotations.
+  Widget* createWidgetInRect(unsigned int index,
+                             const WidgetFactory* factory,
+                             const rect_t& rect);
+
+  // Exposes the protected getWidgetsZone() for use by the simulator host.
+  rect_t getWidgetsZoneRect() const { return getWidgetsZone(); }
+
   void load();
 
   LayoutOptionValue* getOptionValue(unsigned int index) const;
@@ -204,6 +213,12 @@ class LayoutFactory
 
   static WidgetsContainer* loadLayout(Window* parent, int screenNum);
   static const LayoutFactory* getLayoutFactory(const char* name);
+
+ public:
+  // Accessors for zone map — used by the VS Code simulator to compute
+  // zone rects for a given layout without instantiating a full Layout object.
+  uint8_t getZoneCount() const { return zoneCount; }
+  const uint8_t* getZoneMap() const { return zoneMap; }
 };
 
 //-----------------------------------------------------------------------------

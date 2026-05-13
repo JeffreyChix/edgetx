@@ -212,9 +212,10 @@ class LayoutFactory
   MaskBitmap * bitmap = nullptr;
 
   static WidgetsContainer* loadLayout(Window* parent, int screenNum);
-  static const LayoutFactory* getLayoutFactory(const char* name);
 
  public:
+  static const LayoutFactory* getLayoutFactory(const char* name);
+
   // Accessors for zone map — used by the VS Code simulator to compute
   // zone rects for a given layout without instantiating a full Layout object.
   uint8_t getZoneCount() const { return zoneCount; }

@@ -681,21 +681,20 @@ bool WASM_EXPORT(simuIsNumberKeyboardActive)()
 #include "lvgl/lvgl.h"
 extern WidgetsContainer* customScreens[];
 #elif defined(LUA)
-// Forward declaration for monochrome luaExec (defined in lua/interface.cpp)
-extern void luaExec(const char* filename);
+#include "lua/lua_api.h"
 #endif
 
 void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const char* name)
 {
 #if defined(LUA) && defined(COLORLCD)
+  // Color LCD: run as a StandaloneLuaWindow without touching the filesystem.
   luaExecStandaloneFromBuffer(content, (size_t)len, name);
 #elif defined(LUA)
-  // Monochrome: load buffer into the main Lua script state.
-  // luaExec() is not used here because it expects a filesystem path.
-  // Instead we load directly from the supplied buffer.
-  if (luaL_loadbuffer(lsScripts, content, (size_t)len, name) == LUA_OK) {
-    luaState = INTERPRETER_LOADING;
-  }
+  // Monochrome (BW): run as a standalone script through the BW Lua stack
+  // without touching the filesystem.
+  luaExecFromBuffer(content, (size_t)len, name);
+#else
+  (void)content; (void)len; (void)name;
 #endif
 }
 

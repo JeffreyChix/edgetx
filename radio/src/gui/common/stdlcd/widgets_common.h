@@ -62,6 +62,8 @@ void editCurveRef(coord_t x, coord_t y, CurveRef & curve, event_t event, LcdFlag
                   IsValueAvailable isValueAvailable, int16_t sourceMin, int16_t sourceMax);
 
 extern uint8_t editNameCursorPos;
+extern char* activeEditNameBuffer;
+extern uint8_t activeEditNameSize;
 
 void editName(coord_t x, coord_t y, char *name, uint8_t size, event_t event,
               uint8_t active, LcdFlags attr, uint8_t old_editMode);

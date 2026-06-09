@@ -183,6 +183,7 @@ extern ScriptInputsOutputs scriptInputsOutputs[MAX_SCRIPTS];
 bool luaTask(bool allowLcdUsage);
 void checkLuaMemoryUsage();
 void luaExec(const char * filename);
+void luaExecFromBuffer(const char * content, size_t len, const char * name);
 bool isTelemetryScriptAvailable();
 
 #define luaGetCpuUsed(idx) scriptInternalData[idx].instructions

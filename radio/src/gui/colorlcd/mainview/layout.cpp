@@ -408,6 +408,21 @@ Widget* Layout::createWidget(unsigned int index,
   return widget;
 }
 
+Widget* Layout::createWidgetInRect(unsigned int index,
+                                   const WidgetFactory* factory,
+                                   const rect_t& rect)
+{
+  if (index >= zoneCount) return nullptr;
+  removeWidget(index);
+  Widget* widget = nullptr;
+  if (factory) {
+    g_model.getScreenLayoutData(screenNum)->setWidgetName(index, factory->getName());
+    widget = factory->create(this, rect, screenNum, index);
+  }
+  widgets[index] = widget;
+  return widget;
+}
+
 void Layout::load()
 {
   unsigned int count = getZonesCount();

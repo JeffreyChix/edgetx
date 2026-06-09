@@ -106,6 +106,32 @@ void WASM_EXPORT(simuSendTelemetry)(uint8_t module, uint8_t protocol,
 
 // Lua: trigger reload of permanent scripts.
 void WASM_EXPORT(simuLuaReloadPermanentScripts)();
+void WASM_EXPORT(simuInjectChar)(uint8_t c);
+bool WASM_EXPORT(simuIsTextKeyboardActive)();
+bool WASM_EXPORT(simuIsNumberKeyboardActive)();
+
+// Script simulation: call after simuStart() once the first LCD frame has arrived.
+// simuRunScriptContent  — runs a standalone Lua script supplied as a raw buffer.
+//                         Bypasses WASI file I/O (safe to call from the JS main
+//                         thread which only has stubFs).  content/len are the Lua
+//                         source bytes; name is used only for error messages.
+//                         Color LCD: StandaloneLuaWindow; mono: luaLoadBuffer.
+// simuLoadWidget         — loads a registered Lua widget by its internal name field
+//                          (e.g. "Battery Graph") onto zone 0 of the active main
+//                          screen using the layout's natural zone rect. Color LCD only.
+// simuLoadWidgetInZone   — same as simuLoadWidget but overrides the zone rect with
+//                          explicit pixel coordinates (x, y, w, h).  Used when the
+//                          script carries a ---@simulate layout/zone annotation.
+void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const char* name);
+// simuLoadWidget        — loads widget into zone 0 of the active screen
+//                         using the layout's natural zone rect.
+// simuLoadWidgetByLayout — loads widget into a specific zone of a named layout.
+//                         EdgeTX looks up the layout's zone map and the radio's
+//                         actual display area to compute the exact zone rect.
+void WASM_EXPORT(simuLoadWidget)(const char* widgetName);
+void WASM_EXPORT(simuLoadWidgetByLayout)(const char* widgetName,
+                                         const char* layoutId,
+                                         uint8_t zoneIndex);
 
 // LCD: notify firmware that host has consumed the LCD buffer.
 void WASM_EXPORT(simuLcdFlushed)();
@@ -186,6 +212,7 @@ void WASM_IMPORT(simuAuxSerialStop)(uint8_t port_nr);
 void WASM_IMPORT(simuAuxSerialSetBaudrate)(uint8_t port_nr, uint32_t baudrate);
 void WASM_IMPORT(simuAuxSerialSendBuffer)(uint8_t port_nr, const uint8_t* data,
                                           uint32_t len);
+
 
 // -- Internal (not exported) --
 void simuMain();

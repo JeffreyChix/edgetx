@@ -174,6 +174,8 @@ static int nameCharIdx(char v)
 }
 
 uint8_t editNameCursorPos = 0;
+char* activeEditNameBuffer = nullptr;
+uint8_t activeEditNameSize = 0;
 
 void editName(coord_t x, coord_t y, char* name, uint8_t size, event_t event,
               uint8_t active, LcdFlags attr, uint8_t old_editMode)
@@ -191,6 +193,9 @@ void editName(coord_t x, coord_t y, char* name, uint8_t size, event_t event,
 
   if (active) {
     uint8_t cur = editNameCursorPos;
+      // Track active buffer for simuInjectChar
+      activeEditNameBuffer = name;
+      activeEditNameSize = size;
     if (s_editMode > 0) {
       int8_t c = name[cur];
       int8_t v = c ? c : ' ';

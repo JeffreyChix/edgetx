@@ -719,6 +719,163 @@ void simuLuaReloadPermanentScripts()
 #endif
 }
 
+#if defined(COLORLCD)
+#include "gui/colorlcd/libui/keyboard_base.h"
+#endif
+
+void WASM_EXPORT(simuInjectChar)(uint8_t c)
+{
+#if defined(COLORLCD)
+  Keyboard::injectChar(c);
+#else
+  // Monochrome: write directly to active edit buffer
+  extern char* activeEditNameBuffer;
+  extern uint8_t activeEditNameSize;
+  extern uint8_t editNameCursorPos;
+
+  if (!activeEditNameBuffer) return;
+  if (c == 8) { // backspace
+    if (editNameCursorPos > 0) {
+      editNameCursorPos--;
+      activeEditNameBuffer[editNameCursorPos] = ' ';
+      storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
+    }
+  } else if (c >= 32 && c < 127) {
+    if (editNameCursorPos < activeEditNameSize - 1) {
+      activeEditNameBuffer[editNameCursorPos] = (char)c;
+      editNameCursorPos++;
+      storageDirty(isModelMenuDisplayed() ? EE_MODEL : EE_GENERAL);
+    }
+  }
+#endif
+}
+
+bool WASM_EXPORT(simuIsTextKeyboardActive)()
+{
+#if defined(COLORLCD)
+  return Keyboard::isTextKeyboardActive();
+#else
+  extern char* activeEditNameBuffer;
+  extern int8_t s_editMode;
+  return activeEditNameBuffer != nullptr && s_editMode > 0;
+#endif
+}
+
+bool WASM_EXPORT(simuIsNumberKeyboardActive)()
+{
+#if defined(COLORLCD)
+  return Keyboard::isNumberKeyboardActive();
+#else
+  return false;
+#endif
+}
+
+// ---------------------------------------------------------------------------
+// Script simulation exports
+// ---------------------------------------------------------------------------
+
+#if defined(COLORLCD)
+#include "gui/colorlcd/standalone_lua.h"
+#include "gui/colorlcd/mainview/view_main.h"
+#include "gui/colorlcd/mainview/layout.h"
+#include "gui/colorlcd/mainview/widget.h"
+#include "lvgl/lvgl.h"
+extern WidgetsContainer* customScreens[];
+#elif defined(LUA)
+#include "lua/lua_api.h"
+#endif
+
+void WASM_EXPORT(simuRunScriptContent)(const char* content, uint32_t len, const char* name)
+{
+#if defined(LUA) && defined(COLORLCD)
+  // Color LCD: run as a StandaloneLuaWindow without touching the filesystem.
+  luaExecStandaloneFromBuffer(content, (size_t)len, name);
+#elif defined(LUA)
+  // Monochrome (BW): run as a standalone script through the BW Lua stack
+  // without touching the filesystem.
+  luaExecFromBuffer(content, (size_t)len, name);
+#else
+  (void)content; (void)len; (void)name;
+#endif
+}
+
+// Pending widget request — must outlive the async call.
+static struct {
+  char name[33];
+  bool hasLayout;
+  char layoutId[33];
+  uint8_t zoneIndex;
+} _pendingWidget = {{0}, false, {0}, 0};
+
+#if defined(COLORLCD) && defined(LUA)
+static void _loadWidgetOnLvglThread(void* /*param*/)
+{
+  if (_pendingWidget.name[0] == '\0') return;
+
+  unsigned int screenIdx = ViewMain::instance()->getCurrentMainView();
+  if (screenIdx < MAX_CUSTOM_SCREENS && customScreens[screenIdx]) {
+    const WidgetFactory* factory = WidgetFactory::getWidgetFactory(_pendingWidget.name);
+    if (factory) {
+      Layout* layout = static_cast<Layout*>(customScreens[screenIdx]);
+      if (_pendingWidget.hasLayout) {
+        // Look up the target layout factory and compute its zone rect using
+        // the radio's actual available display area — EdgeTX owns both pieces.
+        const LayoutFactory* lf =
+            LayoutFactory::getLayoutFactory(_pendingWidget.layoutId);
+        uint8_t zi = _pendingWidget.zoneIndex;
+        if (lf && zi < lf->getZoneCount()) {
+          const uint8_t* zm = lf->getZoneMap();
+          rect_t avail = layout->getWidgetsZoneRect();
+          uint8_t i = zi * 4;
+          coord_t zx = avail.x + avail.w * zm[i]     / LAYOUT_MAP_DIV;
+          coord_t zy = avail.y + avail.h * zm[i + 1] / LAYOUT_MAP_DIV;
+          coord_t zw = avail.w * zm[i + 2] / LAYOUT_MAP_DIV;
+          coord_t zh = avail.h * zm[i + 3] / LAYOUT_MAP_DIV;
+          layout->createWidgetInRect(0, factory, {zx, zy, zw, zh});
+        } else {
+          // Layout or zone not found — fall back to natural zone 0
+          layout->removeWidget(0);
+          layout->createWidget(0, factory);
+        }
+      } else {
+        layout->removeWidget(0);
+        layout->createWidget(0, factory);
+      }
+    }
+  }
+  _pendingWidget.name[0] = '\0';
+  _pendingWidget.hasLayout = false;
+}
+#endif
+
+void WASM_EXPORT(simuLoadWidget)(const char* widgetName)
+{
+#if defined(COLORLCD) && defined(LUA)
+  if (!widgetName || widgetName[0] == '\0') return;
+  strncpy(_pendingWidget.name, widgetName, sizeof(_pendingWidget.name) - 1);
+  _pendingWidget.name[sizeof(_pendingWidget.name) - 1] = '\0';
+  _pendingWidget.hasLayout = false;
+  lv_async_call(_loadWidgetOnLvglThread, nullptr);
+#endif
+}
+
+void WASM_EXPORT(simuLoadWidgetByLayout)(const char* widgetName,
+                                         const char* layoutId,
+                                         uint8_t zoneIndex)
+{
+#if defined(COLORLCD) && defined(LUA)
+  if (!widgetName || widgetName[0] == '\0') return;
+  strncpy(_pendingWidget.name, widgetName, sizeof(_pendingWidget.name) - 1);
+  _pendingWidget.name[sizeof(_pendingWidget.name) - 1] = '\0';
+  _pendingWidget.hasLayout = true;
+  strncpy(_pendingWidget.layoutId, layoutId ? layoutId : "",
+          sizeof(_pendingWidget.layoutId) - 1);
+  _pendingWidget.layoutId[sizeof(_pendingWidget.layoutId) - 1] = '\0';
+  _pendingWidget.zoneIndex = zoneIndex;
+  lv_async_call(_loadWidgetOnLvglThread, nullptr);
+#endif
+}
+
 void simuLcdFlushed()
 {
   ::lcdFlushed();

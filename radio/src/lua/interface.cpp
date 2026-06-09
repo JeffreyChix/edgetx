@@ -1027,6 +1027,97 @@ void luaExec(const char * filename)
   luaState = INTERPRETER_LOADING;
   luaLoadScripts(true, filename);
 }
+
+// Buffer-based variant of luaExec: loads Lua source directly from memory
+// instead of from the filesystem.  Used by the VS Code simulator host to
+// bypass WASI file I/O, which is only available on pthreads (FsProxyClient),
+// not on the main WASM thread that handles JS-exported function calls.
+void luaExecFromBuffer(const char * content, size_t len, const char * name)
+{
+  luaInit();
+  if (luaState == INTERPRETER_PANIC) return;
+
+  luaLcdAllowed = false;
+  luaEmptyEventBuffer();
+
+  // Set up the standalone script slot
+  luaScriptsCount = 0;
+  ScriptInternalData & sid = scriptInternalData[luaScriptsCount++];
+  sid.reference = SCRIPT_STANDALONE;
+
+  // Load chunk from buffer — no filesystem access
+  if (luaL_loadbuffer(lsScripts, content, len, name) != LUA_OK) {
+    sid.state = SCRIPT_SYNTAX_ERROR;
+    luaError(lsScripts, sid.state);
+    lua_pop(mainState, 1);
+    lsScripts = lua_newthread(mainState);
+    luaDoGc(lsScripts, true);
+    return;
+  }
+  sid.state = SCRIPT_OK;
+
+  // Helper: read a named function from the table on top of the stack
+  // and store it in the Lua registry (same logic as luaRegisterFunction).
+  auto regFn = [](const char * fnName) -> int {
+    lua_getfield(lsScripts, -1, fnName);
+    if (lua_isfunction(lsScripts, -1))
+      return luaL_ref(lsScripts, LUA_REGISTRYINDEX);
+    lua_pop(lsScripts, 1);
+    return LUA_REFNIL;
+  };
+
+  // Run the chunk and extract run / background / init — mirrors luaLoadScripts.
+  int initFunction = LUA_REFNIL;
+  do {
+    int luaStatus = lua_resume(lsScripts, nullptr, 0);
+
+    if (luaStatus == LUA_YIELD) {
+      // Script yielded during init — hand off to the main loop
+      luaState = INTERPRETER_LOADING;
+      return;
+    } else if (luaStatus == LUA_OK) {
+      if (initFunction != LUA_REFNIL) {
+        // init() just returned
+        luaL_unref(lsScripts, LUA_REGISTRYINDEX, initFunction);
+        lua_settop(lsScripts, 0);
+        initFunction = LUA_REFNIL;
+      } else {
+        // chunk() just returned — extract the table
+        lua_settop(lsScripts, 1);
+        if (lua_istable(lsScripts, -1)) {
+          sid.run        = regFn("run");
+          sid.background = regFn("background");
+          initFunction   = regFn("init");
+          if (sid.run == LUA_REFNIL) {
+            sid.state    = SCRIPT_SYNTAX_ERROR;
+            initFunction = LUA_REFNIL;
+          }
+        } else {
+          sid.state    = SCRIPT_SYNTAX_ERROR;
+          initFunction = LUA_REFNIL;
+        }
+        lua_pop(lsScripts, 1);
+        if (initFunction != LUA_REFNIL) {
+          lua_rawgeti(lsScripts, LUA_REGISTRYINDEX, initFunction);
+          luaLcdAllowed = true;
+        }
+      }
+    } else {
+      sid.state    = SCRIPT_SYNTAX_ERROR;
+      initFunction = LUA_REFNIL;
+    }
+  } while (initFunction != LUA_REFNIL);
+
+  if (sid.state != SCRIPT_OK) {
+    luaError(lsScripts, sid.state);
+    lua_pop(mainState, 1);
+    lsScripts = lua_newthread(mainState);
+    luaDoGc(lsScripts, true);
+    return;
+  }
+
+  luaState = INTERPRETER_START_RUNNING;
+}
 #endif
 
 static bool resumeLua(bool init, bool allowLcdUsage)

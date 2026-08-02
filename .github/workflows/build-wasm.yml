@@ -7,8 +7,6 @@ on:
         description: 'Radios to build (semicolon-separated, e.g. tx16s;zorro;boxer). Leave empty for all.'
         required: false
         default: ''
-  schedule:
-  - cron: '0 0 * * 0' # weekly Sunday midnight
 
 jobs:
   build-mono:
